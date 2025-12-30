@@ -12,7 +12,7 @@ const Core = (function() {
     let myNickname = "";
     let currentRoomId = "";
     let GameImpl = null;
-    let CONFIG = { apiPath: "", wsPath: "/ws" };
+    let CONFIG = { apiPath: "/Clue", wsPath: "/Clue/ws" };
 
     function sendActionInternal(data) {
         if (!stompClient || !currentRoomId) return;
@@ -110,6 +110,8 @@ const Core = (function() {
             stompClient.subscribe(`/topic/${roomId}`, function (msg) {
                 handleCommonMessage(JSON.parse(msg.body));
             });
+            // ★★★ 추가: 허브에 Active 상태 알림 (선택 사항) ★★★
+            // 필요하다면 여기서 허브 쪽으로 "나 살아있음" 메시지를 보낼 수도 있음
         }, function(error) {
             showAlert("서버 연결 끊김");
         });

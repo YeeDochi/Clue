@@ -13,6 +13,12 @@ import java.util.List;
 public class RoomController {
     private final RoomService roomService;
 
+    // 0. 상태 확인용 (HEAD /api/rooms)
+    // 방 목록 조회 로직 없이 즉시 응답하여 타임아웃 방지
+    @RequestMapping(method = RequestMethod.HEAD)
+    public void healthCheck() {
+    }
+
     // 1. 방 목록 조회 (GET /api/rooms)
     @GetMapping
     public List<BaseGameRoom> findAllRooms() {
