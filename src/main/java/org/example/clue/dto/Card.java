@@ -1,16 +1,22 @@
 package org.example.clue.dto;
+
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter @Setter
 @AllArgsConstructor
+@NoArgsConstructor
 public class Card {
-    private String suit; // S, D, H, C
-    private int rank;    // 1(A) ~ 13(K)
+    public enum CardType { SUSPECT, WEAPON, ROOM }
+
+    private CardType type;
+    private String name; // 예: "MUSTARD", "ROPE", "KITCHEN"
+    private String imageUrl; // 프론트엔드 표시용 이미지 경로 (선택 사항)
 
     @Override
     public String toString() {
-        return suit + rank;
+        return type + ":" + name;
     }
 }
