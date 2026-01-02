@@ -14,8 +14,8 @@ const ClueGame = (function() {
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,2,0],
         [0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,2,0,0,0,0],
         [0,0,0,0,0,0,0,0,1,1,2,0,0,0,2,1,1,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,1,1,0,9,9,0,0,1,1,0,0,0,0,0],
-        [0,0,0,0,0,0,0,2,1,1,0,9,9,0,0,1,1,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,1,1,0,0,0,0,0],
+        [0,0,0,0,0,0,0,2,1,1,0,0,0,0,0,1,1,0,0,0,0,0],
         [0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,1,1,1,1,1,1,1],
         [0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,1,1,0,0,2,0,0],
         [0,0,0,0,2,0,0,0,1,1,0,0,0,0,0,1,0,0,0,0,0,0],
@@ -29,7 +29,25 @@ const ClueGame = (function() {
         [0,0,0,0,0,0,0,1,3,0,0,0,0,0,0,1,0,0,0,0,0,0]
     ];
 
+    // [2] 문 좌표-방 이름 매핑 (정밀 수정)
+    const DOOR_MAP = {
+        "17,2": "CONSERVATORY",
+        "4,4": "KITCHEN", "8,4": "BALLROOM", "14,4": "BALLROOM",
+        "9,5": "BALLROOM", "13,5": "BALLROOM",
+        "20,6": "BILLIARD", "17,7": "BILLIARD", "19,12": "BILLIARD",
+        "10,8": "CENTER", "14,8": "CENTER",
+        "7,10": "DINING", "4,13": "DINING",
+        "16,14": "LIBRARY",
+        "11,16": "HALL", "12,16": "HALL",
+        "6,17": "LOUNGE",
+        "14,19": "HALL", "17,19": "STUDY"
+    };
+
+    // [3] 좌표 기반 방 이름 찾기 (DOOR_MAP 우선순위 강화)
     function getRoomNameByCoord(x, y) {
+        const doorKey = `${x},${y}`;
+        if (DOOR_MAP[doorKey]) return DOOR_MAP[doorKey];
+
         if (y < 6 && x < 6) return "KITCHEN";
         if (y < 6 && x > 8 && x < 15) return "BALLROOM";
         if (y < 6 && x > 16) return "CONSERVATORY";
@@ -40,7 +58,7 @@ const ClueGame = (function() {
         }
         if (y >= 14) {
             if (y < 17 && x > 16) return "LIBRARY";
-            if (y > 17) {
+            if (y >= 17) {
                 if (x < 7) return "LOUNGE";
                 if (x > 8 && x < 15) return "HALL";
                 if (x > 16) return "STUDY";
@@ -49,19 +67,18 @@ const ClueGame = (function() {
         return "HALL";
     }
 
-    // (DOOR_MAP 등 기존 상수 유지)
-    const DOOR_MAP = {
-        "4,4": "KITCHEN",
-        "8,4": "BALLROOM", "14,4": "BALLROOM", "9,5": "BALLROOM", "13,5": "BALLROOM",
-        "17,2": "CONSERVATORY",
-        "7,10": "DINING", "4,13": "DINING",
-        "19,6": "BILLIARD", "17,7": "BILLIARD", "19,12": "BILLIARD",
-        "10,8": "CENTER", "14,8": "CENTER",
-        "16,14": "LIBRARY",
-        "6,17": "LOUNGE",
-        "11,16": "HALL", "12,16": "HALL", "14,19": "HALL",
-        "17,19": "STUDY"
-    };
+    // [4] 문 방향 계산 (당구장 위쪽 문 예외 처리)
+    function getDoorRotation(x, y) {
+        // 당구장 위쪽 문(20, 6)은 무조건 위쪽(0도)이 복도라고 강제 지정
+        if (x === 20 && y === 6) return 0;
+
+        const isWalkable = (v) => (v === 1 || v === 3);
+        if (y > 0 && isWalkable(MAP_DATA[y-1][x])) return 0;
+        if (y < 21 && isWalkable(MAP_DATA[y+1][x])) return 180;
+        if (x > 0 && isWalkable(MAP_DATA[y][x-1])) return 270;
+        if (x < 21 && isWalkable(MAP_DATA[y][x+1])) return 90;
+        return 0;
+    }
 
     const CARD_META = {
         "MUSTARD": { name: "머스터드", icon: "💂", color: "#FFD700" },
@@ -195,14 +212,27 @@ const ClueGame = (function() {
     }
 
     function updateButtons() {
-        disableAllButtons();
-        const r=document.getElementById('btn-roll'), s=document.getElementById('btn-suggest'), a=document.getElementById('btn-accuse'), e=document.getElementById('btn-endturn');
-        if (currentPhase === 'ROLL') r.disabled = false;
-        else if (currentPhase === 'ACTION') {
-            if (myLocation === "Room:CENTER") { a.disabled=false; e.disabled=false; s.disabled=true; }
-            else if (myLocation.startsWith("Room:")) { s.disabled=false; a.disabled=false; e.disabled=false; }
-            else { e.disabled=false; }
-        } else if (currentPhase === 'END') e.disabled = false;
+        const r = document.getElementById('btn-roll');
+        const s = document.getElementById('btn-suggest');
+        const a = document.getElementById('btn-accuse');
+        const e = document.getElementById('btn-endturn');
+
+        // 일단 모든 버튼 비활성화
+        [r, s, a, e].forEach(btn => { if (btn) btn.disabled = true; });
+
+        if (currentPhase === 'ROLL') {
+            if (r) r.disabled = false;
+        }
+        // 이동 중(MOVE), 행동 중(ACTION), 이동 종료(END) 단계 모두에서 턴 종료 가능하게 설정
+        else if (currentPhase === 'MOVE' || currentPhase === 'ACTION' || currentPhase === 'END') {
+            if (e) e.disabled = false;
+        }
+
+        if (currentPhase === 'ACTION') {
+            // 방 안이고 최종추리실이 아닐 때만 추리 가능
+            if (s && myLocation.startsWith("Room:") && myLocation !== "Room:CENTER") s.disabled = false;
+            if (a) a.disabled = false;
+        }
     }
 
     function disableAllButtons() { ['btn-roll','btn-suggest','btn-accuse','btn-endturn'].forEach(id=>document.getElementById(id).disabled=true); }
@@ -214,69 +244,65 @@ const ClueGame = (function() {
         if (movesLeft <= 0) { alert("이동력 부족! 턴을 넘기세요."); return; }
 
         let isValidMove = false;
+        let [cx, cy] = [-1, -1];
 
-        // 1. 방 안에 있을 때
+        // 현재 위치 좌표 파싱
+        if (myLocation.includes("-")) {
+            [cx, cy] = myLocation.split("-").map(Number);
+        }
+
+        // 1. 방 안에 있을 때 (탈출 로직)
         if (myLocation.startsWith("Room:")) {
             const currentRoomName = myLocation.split(":")[1];
-            // 예외: 아직 방 문 데이터가 없는 경우 (대기실 등)
-            if(!currentRoomName) {
-                alert("현재 방 정보를 알 수 없습니다."); return;
-            }
+            if (!currentRoomName) { alert("현재 방 정보를 알 수 없습니다."); return; }
 
-            const roomDoors = [];
-            for(let key in DOOR_MAP) {
-                if(DOOR_MAP[key] === currentRoomName) {
-                    const parts = key.split(',');
-                    roomDoors.push({x: parseInt(parts[0]), y: parseInt(parts[1])});
-                }
-            }
-            // 방의 문이나 문 앞 타일 클릭 시 허용
-            for(let d of roomDoors) {
-                if (Math.abs(d.x - x) + Math.abs(d.y - y) <= 1) { // 문 자체(0거리)나 옆(1거리)
-                    isValidMove = true;
-                    break;
+            // 현재 방에 연결된 모든 문 좌표 확인
+            for (let key in DOOR_MAP) {
+                if (DOOR_MAP[key] === currentRoomName) {
+                    const [dx, dy] = key.split(',').map(Number);
+                    // 문 정면 칸을 클릭했는지 체크 (isValidDoorEntry 로직 활용)
+                    if (isValidDoorEntry(x, y, dx, dy)) {
+                        isValidMove = true;
+                        break;
+                    }
                 }
             }
             if (!isValidMove) {
-                alert(`[${getKorName(currentRoomName)}]에서 나가려면 문(🚪)이나 문 바로 앞을 클릭하세요.`);
+                alert(`[${getKorName(currentRoomName)}]에서 나가려면 문의 정면에 있는 복도 칸을 클릭하세요.`);
                 return;
             }
         }
-        // 2. 복도 (좌표)
-        else if (myLocation.includes("-")) {
-            const [cx, cy] = myLocation.split("-").map(Number);
-            if (Math.abs(cx - x) + Math.abs(cy - y) === 1) {
-                isValidMove = true;
+        // 2. 복도에 있을 때 (이동 및 진입 로직)
+        else if (cx !== -1 && cy !== -1) {
+            if (isDoor) {
+                // 문 진입 시 정면 체크
+                if (isValidDoorEntry(cx, cy, x, y)) {
+                    isValidMove = true;
+                } else {
+                    alert("문의 정면(화살표 방향)에서만 진입할 수 있습니다.");
+                    return;
+                }
             } else {
-                alert("인접한 칸(상하좌우)으로만 이동 가능합니다.");
-                return;
+                // 일반 복도 간 이동 (인접 1칸)
+                if (Math.abs(cx - x) + Math.abs(cy - y) === 1) {
+                    isValidMove = true;
+                } else {
+                    alert("인접한 칸(상하좌우)으로만 이동 가능합니다.");
+                    return;
+                }
             }
-        }
-        // 3. 대기 상태 예외 (Start_Hall 등)
-        else {
-            // [중요] myLocation 동기화가 되었다면 여기로 안 옴.
-            // 혹시라도 여기로 오면 강제 갱신 시도
+        } else {
             alert("위치 정보 동기화 중... 다시 시도해주세요.");
             return;
         }
 
+        // 검증 통과 시 서버에 액션 전송
         let target = `${x}-${y}`;
         if (isDoor) {
             const rName = getRoomNameByCoord(x, y) || "HALL";
             target = `Room:${rName}`;
         }
         Core.sendAction({ actionType: 'MOVE', location: target });
-    }
-
-    function getDoorRotation(x, y) {
-        const isWalkable = (v) => (v === 1 || v === 3);
-        const H = MAP_DATA.length;
-        const W = MAP_DATA[0].length;
-        if (y > 0 && isWalkable(MAP_DATA[y-1][x])) return 0;
-        if (y < H-1 && isWalkable(MAP_DATA[y+1][x])) return 180;
-        if (x > 0 && isWalkable(MAP_DATA[y][x-1])) return 270;
-        if (x < W-1 && isWalkable(MAP_DATA[y][x+1])) return 90;
-        return 0;
     }
 
     function renderBoard22x22() {
@@ -377,7 +403,13 @@ const ClueGame = (function() {
 
     function rollDice(){ Core.sendAction({actionType:'ROLL_DICE'}); }
     function startGame(){ Core.sendAction({actionType:'START'}); }
-    function endTurn(){ Core.sendAction({actionType:'TURN_END'}); }
+    function endTurn() {
+        if (!isMyTurn) return;
+        if (currentPhase === 'MOVE' && movesLeft > 0) {
+            if (!confirm("이동력이 남았습니다. 턴을 종료할까요?")) return;
+        }
+        Core.sendAction({ actionType: 'TURN_END' });
+    }
     function openActionModal(t){
         currentActionType=t;
         document.getElementById('action-modal').classList.remove('hidden');
