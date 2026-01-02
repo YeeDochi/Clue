@@ -51,6 +51,7 @@ public class ClueGameRoom extends BaseGameRoom {
         switch (actionType) {
             case "ROLL_DICE": return handleRollDice(senderId);
             case "MOVE": return handleMove(senderId, (String) data.get("location"));
+            case "MOVE_PATH": return handleMovePath(senderId, (List<String>) data.get("path"));
             case "SECRET_PASSAGE": return handleSecretPassage(senderId, (String) data.get("location"));
             case "SUGGEST": return handleSuggest(senderId, data);
             case "RESPONSE": return handleResponse(senderId, data);
@@ -266,9 +267,94 @@ public class ClueGameRoom extends BaseGameRoom {
         msg.setData(payload);
         return msg;
     }
+    private GameMessage handleMovePath(String playerId, List<String> path) {
+        if (currentPhase != TurnPhase.MOVE) return createSystemMessage("ERROR", "이동 단계가 아닙니다.");
+        if (path == null || path.isEmpty()) return null;
 
-    private GameMessage handleAccuse(String playerId, Map<String, Object> data) { String s = (String) data.get("suspect"); String w = (String) data.get("weapon"); String r = (String) data.get("room"); boolean isCorrect = isCorrectAccusation(s, w, r); GameMessage msg = new GameMessage(); msg.setRoomId(roomId); if (isCorrect) { msg.setType("GAME_OVER"); msg.setSender("SYSTEM"); Map<String, Object> res = new HashMap<>(); res.put("winnerName", users.get(playerId).getNickname()); res.put("answer", this.answerEnvelope); msg.setData(res); this.playing = false; } else { msg.setType("ACCUSE_FAILED"); msg.setSender("SYSTEM"); eliminatedPlayers.add(playerId); if (eliminatedPlayers.size() >= users.size()) { msg.setType("GAME_OVER"); msg.setContent("모두 탈락했습니다. 게임 오버!"); Map<String, Object> res = new HashMap<>(); res.put("winnerName", "NOBODY"); res.put("answer", this.answerEnvelope); msg.setData(res); this.playing = false; } else { handleTurnEnd(playerId); } } return msg; }
-    private String findFirstRefuter(String suggestorId, String s, String w, String r) { int startIdx = turnOrder.indexOf(suggestorId); for (int i = 1; i < turnOrder.size(); i++) { int idx = (startIdx + i) % turnOrder.size(); String pid = turnOrder.get(idx); Player p = users.get(pid); List<Card> hand = (List<Card>) p.getAttribute("hand"); if (hand == null) continue; boolean hasCard = hand.stream().anyMatch(c -> c.getName().equals(s) || c.getName().equals(w) || c.getName().equals(r)); if (hasCard) return pid; } return null; }
+        String currentLoc = playerLocations.get(playerId);
+
+        for (String target : path) {
+            if (movesLeft <= 0) return createSystemMessage("ERROR", "이동력이 부족합니다.");
+
+            // 인접 체크 (기존 handleMove와 동일한 검증)
+            if (currentLoc.contains("-") && target.contains("-")) {
+                String[] c = currentLoc.split("-");
+                String[] t = target.split("-");
+                int dist = Math.abs(Integer.parseInt(c[0]) - Integer.parseInt(t[0]))
+                        + Math.abs(Integer.parseInt(c[1]) - Integer.parseInt(t[1]));
+                if (dist > 1) return createSystemMessage("ERROR", "유효하지 않은 이동 경로입니다.");
+            }
+
+            // 위치 업데이트 및 이동력 차감
+            playerLocations.put(playerId, target);
+            movesLeft--;
+            currentLoc = target; // 다음 스텝을 위해 갱신
+
+            // 방에 도착했으면 즉시 종료
+            if (target.startsWith("Room:")) {
+                movesLeft = 0;
+                currentPhase = TurnPhase.ACTION;
+                break;
+            }
+        }
+
+        // 이동력이 0이 되면 턴 종료 단계로 (방에 안 들어간 경우)
+        if (movesLeft == 0 && currentPhase == TurnPhase.MOVE) {
+            currentPhase = TurnPhase.END;
+        }
+
+        GameMessage msg = new GameMessage();
+        msg.setType("MOVED");
+        msg.setData(getGameSnapshot());
+        return msg;
+    }
+    private GameMessage handleAccuse(String playerId, Map<String, Object> data) {
+        String s = (String) data.get("suspect");
+        String w = (String) data.get("weapon");
+        String r = (String) data.get("room");
+
+        boolean isCorrect = isCorrectAccusation(s, w, r);
+        GameMessage msg = new GameMessage();
+        msg.setRoomId(roomId);
+
+        if (isCorrect) {
+            // 1. 정답인 경우 (게임 종료)
+            msg.setType("GAME_OVER");
+            msg.setSender("SYSTEM");
+            Map<String, Object> res = new HashMap<>();
+            res.put("winnerName", users.get(playerId).getNickname());
+            res.put("answer", this.answerEnvelope);
+            msg.setData(res);
+            this.playing = false;
+        } else {
+            // 2. 오답인 경우 (탈락 처리 및 턴 넘김)
+            msg.setType("ACCUSE_FAILED");
+            // 로그에 "SYSTEM님의 고발이..."라고 뜨지 않도록 플레이어 이름으로 설정
+            msg.setSender(users.get(playerId).getNickname());
+            msg.setSenderId(playerId); // ID도 명시
+
+            eliminatedPlayers.add(playerId);
+
+            if (eliminatedPlayers.size() >= users.size()) {
+                // 전원 탈락 시
+                msg.setType("GAME_OVER");
+                msg.setContent("모두 탈락했습니다. 게임 오버!");
+                Map<String, Object> res = new HashMap<>();
+                res.put("winnerName", "NOBODY");
+                res.put("answer", this.answerEnvelope);
+                msg.setData(res);
+                this.playing = false;
+            } else {
+                // [중요] 다음 턴으로 넘김
+                handleTurnEnd(playerId);
+
+                // [핵심 수정] 변경된 턴 정보(Snapshot)를 반드시 클라이언트에 보내야 함!
+                // 이 줄이 없어서 클라이언트 화면이 갱신되지 않고 멈췄던 것입니다.
+                msg.setData(getGameSnapshot());
+            }
+        }
+        return msg;
+    }private String findFirstRefuter(String suggestorId, String s, String w, String r) { int startIdx = turnOrder.indexOf(suggestorId); for (int i = 1; i < turnOrder.size(); i++) { int idx = (startIdx + i) % turnOrder.size(); String pid = turnOrder.get(idx); Player p = users.get(pid); List<Card> hand = (List<Card>) p.getAttribute("hand"); if (hand == null) continue; boolean hasCard = hand.stream().anyMatch(c -> c.getName().equals(s) || c.getName().equals(w) || c.getName().equals(r)); if (hasCard) return pid; } return null; }
     private void moveSuspectToRoom(String suspectName, String roomName) { for (Map.Entry<String, String> entry : playerCharacters.entrySet()) { if (entry.getValue().equals(suspectName)) { playerLocations.put(entry.getKey(), "Room:" + roomName); break; } } }
     private boolean isCorrectAccusation(String s, String w, String r) { Set<String> answers = answerEnvelope.stream().map(Card::getName).collect(Collectors.toSet()); return answers.contains(s) && answers.contains(w) && answers.contains(r); }
 }

@@ -400,41 +400,89 @@ const ClueGame = (function() {
 
     function handleTileClick(x, y, isDoor) {
         if (!isMyTurn || currentPhase !== 'MOVE') return;
-        if (movesLeft <= 0) { Core.showAlert("이동력이 부족합니다! 턴을 종료하세요."); return; }
+        if (movesLeft <= 0) { Core.showAlert("이동력이 부족합니다!"); return; }
 
-        let isValidMove = false;
-        let [cx, cy] = [-1, -1];
-
-        if (myLocation.includes("-")) {
-            [cx, cy] = myLocation.split("-").map(Number);
-        }
-
+        let currentX = -1, currentY = -1;
         if (myLocation.startsWith("Room:")) {
+            // 방에서 나갈 때는 문 앞 복도로만 이동 (기존 로직 유지)
             const currentRoomName = myLocation.split(":")[1];
+            let isValid = false;
             for (let key in DOOR_MAP) {
                 if (DOOR_MAP[key] === currentRoomName) {
                     const [dx, dy] = key.split(',').map(Number);
-                    if (isValidDoorEntry(x, y, dx, dy)) { isValidMove = true; break; }
+                    if (isValidDoorEntry(x, y, dx, dy)) { isValid = true; break; }
                 }
             }
-            if (!isValidMove) { Core.showAlert(`[${getKorName(currentRoomName)}] 문 앞 복도로만 이동할 수 있습니다.`); return; }
-        }
-        else if (cx !== -1 && cy !== -1) {
-            if (isDoor) {
-                if (isValidDoorEntry(cx, cy, x, y)) isValidMove = true;
-                else { Core.showAlert("문의 정면(화살표)으로만 들어갈 수 있습니다."); return; }
-            } else {
-                if (Math.abs(cx - x) + Math.abs(cy - y) === 1) isValidMove = true;
-                else { Core.showAlert("인접한 칸으로만 이동 가능합니다."); return; }
-            }
+            if(!isValid) { Core.showAlert("문 앞 복도로만 이동할 수 있습니다."); return; }
+            Core.sendAction({ actionType: 'MOVE', location: `${x}-${y}` });
+            return;
+        } else {
+            [currentX, currentY] = myLocation.split("-").map(Number);
         }
 
-        let target = `${x}-${y}`;
+        // [변경] 클릭한 곳까지 최단 경로 계산 (BFS)
+        const path = findShortestPath(currentX, currentY, x, y, movesLeft);
+
+        if (!path) {
+            Core.showAlert("이동할 수 없는 곳이거나 이동력이 부족합니다.");
+            return;
+        }
+
+        // 문을 클릭했을 경우, 경로의 마지막을 'Room:이름'으로 변경
+        let finalPath = [...path];
         if (isDoor) {
             const rName = getRoomNameByCoord(x, y) || "HALL";
-            target = `Room:${rName}`;
+            finalPath[finalPath.length - 1] = `Room:${rName}`;
         }
-        Core.sendAction({ actionType: 'MOVE', location: target });
+
+        // [변경] 서버에 'MOVE' 대신 'MOVE_PATH'로 경로 전체 전송
+        Core.sendAction({ actionType: 'MOVE_PATH', path: finalPath });
+    }
+    function findShortestPath(sx, sy, tx, ty, limit) {
+        let queue = [{ x: sx, y: sy, path: [] }];
+        let visited = new Set();
+        visited.add(`${sx},${sy}`);
+
+        while (queue.length > 0) {
+            let curr = queue.shift();
+
+            // 목표 지점 도착
+            if (curr.x === tx && curr.y === ty) {
+                return curr.path;
+            }
+
+            // 이동력 제한 넘으면 중단
+            if (curr.path.length >= limit) continue;
+
+            const neighbors = [
+                {nx: curr.x, ny: curr.y - 1}, {nx: curr.x, ny: curr.y + 1},
+                {nx: curr.x - 1, ny: curr.y}, {nx: curr.x + 1, ny: curr.y}
+            ];
+
+            for (let n of neighbors) {
+                if (n.nx < 0 || n.ny < 0 || n.nx >= 22 || n.ny >= 22) continue;
+
+                // 0:벽, 1:길, 2:문, 3:시작점
+                const type = MAP_DATA[n.ny][n.nx];
+                if (type === 0) continue; // 벽은 못 지나감
+
+                // 문(2)이라면 올바른 방향에서 들어가는지 체크
+                if (type === 2) {
+                    if (!isValidDoorEntry(curr.x, curr.y, n.nx, n.ny)) continue;
+                }
+
+                let key = `${n.nx},${n.ny}`;
+                if (!visited.has(key)) {
+                    visited.add(key);
+                    queue.push({
+                        x: n.nx,
+                        y: n.ny,
+                        path: [...curr.path, `${n.nx}-${n.ny}`]
+                    });
+                }
+            }
+        }
+        return null; // 길 없음
     }
 
     function isValidDoorEntry(curX, curY, doorX, doorY) {
