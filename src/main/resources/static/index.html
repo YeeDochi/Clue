@@ -9,118 +9,53 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="icon" href="https://cdn.simpleicons.org/github/ffffff" type="image/svg+xml">
-
     <style>
-        .hidden { display: none !important; }
-
+        /* [1] 게임 레이아웃 (style.css의 변수 활용) */
         .game-layout {
-            display: flex;
-            gap: 20px;
-            width: 100%;
-            height: auto;
-            min-height: 850px;
-            padding-bottom: 20px;
+            display: flex; gap: 20px; width: 100%; height: auto; min-height: 850px; padding-bottom: 20px;
         }
-
         .game-stage {
-            /* 22칸에 맞춰 너비 조정 */
             flex: 0 0 600px;
             border: 1px solid var(--border-color);
-            background: #2b2b2b;
+            background: #2b2b2b; /* 게임판 배경은 어둡게 유지 */
             border-radius: 8px;
             overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
+            display: flex; flex-direction: column; align-items: center; padding: 20px;
         }
 
-        /* 22x22 리얼 격자 스타일 */
+        /* [2] 보드판 & 타일 (게임 고유 스타일) */
         .clue-board-grid {
-            display: grid;
-            grid-template-columns: repeat(22, 1fr);
-            grid-template-rows: repeat(22, 1fr);
-            gap: 0;
-            aspect-ratio: 1 / 1; /* 정사각형 비율 */
-            width: 100%;
-            max-width: 560px;
-            background: #3a3a3a;
-            border: 8px solid #4a3b2a;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
-            box-sizing: content-box;
+            display: grid; grid-template-columns: repeat(22, 1fr); grid-template-rows: repeat(22, 1fr);
+            gap: 0; aspect-ratio: 1 / 1; width: 100%; max-width: 560px;
+            background: #3a3a3a; border: 8px solid #4a3b2a;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5); box-sizing: content-box;
         }
+        .tile { position: relative; background: #e3c099; outline: 1px solid rgba(0,0,0,0.05); cursor: pointer; aspect-ratio: 1 / 1; display: flex; justify-content: center; align-items: center; }
+        .tile:hover { filter: brightness(0.9); z-index: 2; outline: 1px solid var(--link-color); }
+        .tile.wall { background: transparent; pointer-events: none; outline: none; }
+        .tile.room-area { background-color: #f4f4f4; opacity: 0.95; outline: none; cursor: default; }
+        .tile.door { background: #e3c099; box-shadow: inset 0 0 0 2px #b8860b; z-index: 1; }
+        .tile.door i { font-weight: 900; color: #5a3a22; }
+        .tile.start-pos { background: #ffcccc; box-shadow: inset 0 0 5px rgba(255,0,0,0.2); }
 
-        .tile {
-            position: relative;
-            background: #e3c099;
-            outline: 1px solid rgba(0,0,0,0.05);
-            cursor: pointer;
-            aspect-ratio: 1 / 1;
-            /* 아이콘 정렬용 */
-            display: flex; justify-content: center; align-items: center;
-        }
-        .tile:hover { filter: brightness(0.9); z-index: 2; outline: 1px solid #0969da; }
+        .token { width: 70%; height: 70%; border-radius: 50%; border: 2px solid white; position: absolute; top: 15%; left: 15%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 10px; z-index: 10; box-shadow: 1px 2px 4px rgba(0,0,0,0.6); }
+        .room-label-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); white-space: nowrap; font-weight: 800; font-size: 18px; color: #222; text-transform: uppercase; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; pointer-events: none; z-index: 5; opacity: 0.8; }
 
-        .tile.wall {
-            background: transparent;
-            pointer-events: none;
-            outline: none;
-        }
-
-        .tile.room-area {
-            background-color: #f4f4f4;
-            opacity: 0.95;
-            outline: none;
-            cursor: default;
-        }
-
-        /* [수정] 문 스타일 강화 */
-        .tile.door {
-            background: #e3c099;
-            box-shadow: inset 0 0 0 2px #b8860b;
-            z-index: 1;
-        }
-        /* 문 내부 아이콘/화살표 크기 키움 (JS에서 렌더링됨) */
-        .tile.door i {
-            font-weight: 900; /* 아이콘 굵게 */
-        }
-
-        /* 시작 지점 */
-        .tile.start-pos {
-            background: #ffcccc;
-            box-shadow: inset 0 0 5px rgba(255,0,0,0.2);
-        }
-
-        .right-panel {
-            flex: 1;
-            display: flex; flex-direction: column; gap: 10px;
-            min-width: 300px;
-            max-height: 800px;
-        }
-
+        /* [3] 우측 패널 & 로그 */
+        .right-panel { flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 300px; max-height: 800px; }
         .panel-box {
-            flex: 1;
+            flex: 1; display: flex; flex-direction: column; overflow: hidden;
+            /* style.css의 .box 스타일 상속 대신 직접 지정하거나 class="box panel-box"로 사용 */
             border: 1px solid var(--border-color);
             border-radius: 6px;
             background: var(--box-bg);
-            display: flex; flex-direction: column;
-            overflow: hidden;
-        }
-
-        .panel-header {
-            padding: 10px 15px;
-            background: var(--bg-header);
-            border-bottom: 1px solid var(--border-color);
-            font-size: 14px; font-weight: 600;
             color: var(--text-primary);
         }
-
-        .scroll-content {
-            flex: 1; overflow-y: auto; padding: 12px;
-            font-size: 13px; color: var(--text-primary);
-            line-height: 1.5;
+        .panel-header {
+            padding: 10px 15px; background: var(--bg-header); border-bottom: 1px solid var(--border-color);
+            font-size: 14px; font-weight: 600; color: var(--text-primary);
         }
-
+        .scroll-content { flex: 1; overflow-y: auto; padding: 12px; font-size: 13px; color: var(--text-primary); line-height: 1.5; }
         #game-logs { background: rgba(0,0,0,0.02); }
         .log-item { margin-bottom: 8px; border-bottom: 1px dashed var(--border-color); padding-bottom: 4px; }
 
@@ -129,85 +64,108 @@
             display: flex; gap: 8px; align-items: center;
             background: var(--bg-header);
         }
-        .chat-input-area input { flex: 1; width: auto; min-width: 0; padding: 6px; }
-        .chat-input-area button { flex-shrink: 0; width: auto; }
 
-        .token {
-            width: 70%; height: 70%;
-            border-radius: 50%;
-            border: 2px solid white;
-            position: absolute; top: 15%; left: 15%;
-            display: flex; align-items: center; justify-content: center;
-            color: white; font-weight: bold; font-size: 10px;
-            z-index: 10;
-            box-shadow: 1px 2px 4px rgba(0,0,0,0.6);
-        }
-
-        /* [수정] 방 이름 라벨 크기 확대 */
-        .room-label-overlay {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            white-space: nowrap;
-            font-weight: 800;
-            font-size: 18px; /* 14px -> 18px */
-            color: #222;
-            text-transform: uppercase;
-            /* 글자 테두리를 줘서 가독성 확보 */
-            text-shadow:
-                    -1px -1px 0 #fff,
-                    1px -1px 0 #fff,
-                    -1px  1px 0 #fff,
-                    1px  1px 0 #fff;
-            pointer-events: none; z-index: 5;
-            opacity: 0.8; /* 좀 더 선명하게 */
-        }
-
-        .my-hand-area {
-            width: 95%;
-            height: 130px;
-            margin-top: 15px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 8px;
-            padding: 10px;
-            display: flex; gap: 8px;
-            overflow-x: auto; align-items: center;
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-
+        /* [4] 카드 스타일 */
+        .my-hand-area { width: 95%; height: 140px; margin-top: 15px; background: rgba(0,0,0,0.1); border-radius: 8px; padding: 10px; display: flex; gap: 10px; overflow-x: auto; align-items: center; border: 1px solid rgba(255,255,255,0.2); }
         .clue-card {
-            min-width: 75px; height: 110px;
-            background: linear-gradient(135deg, #fff 0%, #f9f9f9 100%);
-            border: 1px solid #bbb; border-radius: 5px;
-            display: flex; flex-direction: column; justify-content: space-between;
-            align-items: center;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
-            padding: 5px; user-select: none; transition: transform 0.2s;
-            color: #222;
-            flex-shrink: 0;
+            min-width: 85px; height: 120px; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden;
+            box-shadow: 2px 4px 8px rgba(0,0,0,0.3); user-select: none; transition: transform 0.2s;
+            background: #fff; flex-shrink: 0; border: 2px solid #ccc;
         }
-        .clue-card:hover { transform: translateY(-5px); z-index: 10; }
-        .clue-card.suspect { border-top: 4px solid #d73a49; }
-        .clue-card.weapon { border-top: 4px solid #6c757d; }
-        .clue-card.room { border-top: 4px solid #d29922; }
-        .card-icon { font-size: 26px; margin: 4px 0; }
-        .card-name { font-weight: bold; font-size: 11px; text-align: center; }
-        .card-type { font-size: 9px; color: #666; text-transform: uppercase; }
+        .clue-card:hover { transform: translateY(-10px) scale(1.05); z-index: 10; cursor: pointer; }
+        .card-type { font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 4px 0; text-align: center; color: white; letter-spacing: 1px; width: 100%; }
+        .card-body { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 5px; background: linear-gradient(180deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.2) 100%); }
+        .card-icon { font-size: 32px; margin-bottom: 5px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2)); }
+        .card-name { font-weight: 700; font-size: 12px; text-align: center; color: #333; word-break: keep-all; }
 
-        .modal-body { padding: 20px; }
+        .clue-card.suspect { border-color: #c0392b; background-color: #ffcccc; } .clue-card.suspect .card-type { background-color: #c0392b; }
+        .clue-card.weapon { border-color: #34495e; background-color: #d6dbdf; } .clue-card.weapon .card-type { background-color: #34495e; }
+        .clue-card.room { border-color: #d35400; background-color: #fce6c9; } .clue-card.room .card-type { background-color: #d35400; }
+
+        .refute-option { width: 90px; height: 130px; margin: 0 5px; }
+        .disabled-card { opacity: 0.6; filter: grayscale(80%); border-color: #aaa !important; background-color: #eee !important; pointer-events: none; }
+        .disabled-card .card-type { background-color: #777 !important; }
+
+        /* [5] 모달 & 탐정 수첩 (style.css 변수 적용) */
+        .modal-body { padding: 20px; color: var(--text-primary); }
         .select-group { margin-bottom: 15px; }
         .select-group label { display: block; font-weight: bold; margin-bottom: 6px; font-size: 13px; color: var(--text-primary); }
-        .select-group select { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); }
 
+        /* 텍스트 색상 강제 지정 해제 (변수 사용) */
+        #alert-msg-text, #confirm-msg-text, #result-msg, #refute-msg { color: var(--text-primary); }
+
+        /* [탐정 수첩 핵심 수정] style.css의 변수를 사용하여 다크모드 자동 대응 */
+        .notebook-panel-style {
+            position: fixed; top: 50px; right: 20px;
+            width: 340px; height: 80vh;
+            background: var(--box-bg);       /* 배경: 테마에 따름 */
+            border: 2px solid var(--text-primary); /* 테두리: 텍스트 색상 */
+            color: var(--text-primary);      /* 글자: 테마에 따름 */
+            z-index: 1800; border-radius: 8px;
+            display: flex; flex-direction: column;
+            box-shadow: -5px 5px 20px rgba(0,0,0,0.5);
+        }
+        .notebook-body {
+            flex: 1; overflow-y: auto; padding: 10px;
+            background: var(--bg-body); /* 속지 배경: 테마에 따름 */
+        }
+        .notebook-footer {
+            padding: 10px;
+            background: var(--bg-header);
+            border-top: 1px solid var(--border-color);
+        }
+        .close-btn { background: none; border: none; color: var(--text-primary); cursor: pointer; font-size: 16px; font-weight: bold; }
+
+        /* 수첩 내부 테이블 재정의 */
+        #notebook-table th, #notebook-table td {
+            border: 1px solid var(--border-color);
+            text-align: center; padding: 4px 2px;
+            cursor: pointer; user-select: none;
+            color: var(--text-primary);
+        }
+        #notebook-table th {
+            background: var(--bg-header);
+            position: sticky; top: 0; font-weight: bold;
+        }
+
+        /* 섹션 구분 (인물/장소 등) - 항상 어둡게 유지 */
+        .section-row {
+            background: #333 !important; color: #fff !important;
+            font-weight: bold; text-align: left !important; padding-left: 10px !important;
+            pointer-events: none;
+        }
+
+        /* 체크 표시 색상 */
+        .cell-x { color: #d73a49; font-weight: bold; background: rgba(215, 58, 73, 0.1); }
+        .cell-o { color: #2da44e; font-weight: bold; background: rgba(45, 164, 78, 0.1); }
+        .cell-q { color: #d29922; font-weight: bold; }
+
+        /* [6] 다크모드 시 게임 요소 오버라이드 (style.css가 커버 못하는 부분) */
         body.dark-mode .game-stage { background: #1a1a1a; border-color: #333; }
         body.dark-mode .clue-board-grid { background: #111; border-color: #222; }
+
         body.dark-mode .tile { background: #2d2d2d; outline-color: #444; }
         body.dark-mode .tile.room-area { background: #1f1f1f; opacity: 1; }
         body.dark-mode .tile.wall { background: transparent; }
         body.dark-mode .tile.door { background: #5a4b35; box-shadow: inset 0 0 0 2px #8B4513; }
         body.dark-mode .tile.start-pos { background: #4a2b2b; }
+
         body.dark-mode .room-label-overlay { color: #aaa; text-shadow: 2px 2px 0px #000; opacity: 0.7; }
-        body.dark-mode .clue-card { background: #161b22 !important; border-color: #30363d; color: #c9d1d9; }
-        body.dark-mode .card-type { color: #8b949e; }
+
+        body.dark-mode .clue-card { opacity: 0.95; }
+        /* 카드는 다크모드에서도 흰색 배경 기반 디자인 유지 (내용물 식별 위해), 글씨만 검정 유지 */
+        body.dark-mode .card-name { color: #111; text-shadow: 0 0 2px white; }
+
         body.dark-mode .my-hand-area { background: rgba(0,0,0,0.2); border-color: #333; }
+
+        /* 수첩 체크 배경 다크모드 보정 */
+        body.dark-mode .cell-x { background: rgba(215, 58, 73, 0.2); }
+        body.dark-mode .cell-o { background: rgba(45, 164, 78, 0.2); }
+
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -231,7 +189,16 @@
         </div>
     </div>
 </div>
-
+<div id="confirm-modal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; justify-content:center; align-items:center; z-index:2100;">
+    <div class="box" style="width:320px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+        <div class="box-header">확인</div>
+        <div style="padding: 20px; text-align: center;"><p id="confirm-msg-text" style="margin: 0; word-break: keep-all;">진행하시겠습니까?</p></div>
+        <div style="padding:16px; border-top: 1px solid var(--border-color); display:flex; gap:10px;">
+            <button class="btn-primary" onclick="Core.confirmOk()" style="flex:1;">예</button>
+            <button class="btn-default" onclick="Core.closeConfirm()" style="flex:1;">아니오</button>
+        </div>
+    </div>
+</div>
 <div id="login-screen" class="container" style="max-width: 400px; margin-top: 50px;">
     <div class="box">
         <div class="box-header">게임 입장</div>
@@ -276,10 +243,16 @@
 
     <div id="game-tools-area" style="margin-bottom:10px; display:flex; gap:10px; align-items:center;">
         <div id="dice-display" style="font-weight:bold; font-size:14px; margin-right:5px; color:var(--text-primary);">🎲: -</div>
+        <button id="btn-secret" class="btn-primary" onclick="ClueGame.useSecretPassage()" style="display:none; background-color: #6f42c1; border-color: #6f42c1;">
+            <i class="fas fa-dungeon"></i> 비밀통로
+        </button>
         <button id="btn-roll" class="btn-primary" onclick="ClueGame.rollDice()" disabled>🎲 굴리기</button>
         <button id="btn-suggest" class="btn-default" onclick="ClueGame.openSuggestModal()" disabled><i class="fas fa-search"></i> 추리</button>
         <button id="btn-accuse" class="btn-danger" onclick="ClueGame.openAccuseModal()" disabled><i class="fas fa-gavel"></i> 고발</button>
         <button id="btn-endturn" class="btn-default" onclick="ClueGame.endTurn()" disabled>턴 종료</button>
+        <button id="btn-notebook" class="btn-default" onclick="ClueGame.toggleNotebook()">
+            <i class="fas fa-book"></i> 수첩
+        </button>
     </div>
 
     <div class="game-layout">
@@ -341,7 +314,36 @@
         </div>
     </div>
 </div>
+<div id="result-modal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); display:flex; justify-content:center; align-items:center; z-index:1700;">
+    <div class="box" style="width:300px; text-align:center; animation: popIn 0.3s ease-out;">
+        <div class="box-header" style="background:#2b2b2b; color:#fff;">증거 확인</div>
+        <div class="modal-body" style="display:flex; flex-direction:column; align-items:center; gap:15px; padding:25px;">
+            <p id="result-msg" style="font-size:14px; margin:0; color:var(--text-primary);">
+            </p>
 
+            <div id="revealed-card-area" style="transform: scale(1.2);"></div>
+
+            <button class="btn-primary" onclick="document.getElementById('result-modal').classList.add('hidden')" style="width:100%;">
+                확인
+            </button>
+        </div>
+    </div>
+</div>
+<div id="notebook-panel" class="hidden notebook-panel-style">
+    <div class="box-header" style="cursor:move;">
+        <span>🕵️ 탐정 수첩</span>
+        <button onclick="ClueGame.toggleNotebook()" class="close-btn">✖</button>
+    </div>
+    <div class="notebook-body">
+        <table id="notebook-table">
+            <thead id="notebook-head"></thead>
+            <tbody id="notebook-body"></tbody>
+        </table>
+    </div>
+    <div class="notebook-footer">
+        <button class="btn-default" onclick="ClueGame.resetNotebook()" style="width:100%; font-size:11px;">초기화</button>
+    </div>
+</div>
 <script src="/Clue/js/game-core.js"></script>
 <script src="/Clue/js/clue.js"></script>
 

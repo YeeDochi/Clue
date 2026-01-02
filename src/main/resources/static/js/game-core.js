@@ -12,6 +12,7 @@ const Core = (function() {
     let myNickname = "";
     let currentRoomId = "";
     let GameImpl = null;
+    let pendingConfirmCallback = null;
     let CONFIG = { apiPath: "/Clue", wsPath: "/Clue/ws" };
 
     function sendActionInternal(data) {
@@ -163,7 +164,7 @@ const Core = (function() {
         localStorage.setItem('theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
     }
     function showConfirm(msg, callback) {
-        document.getElementById('confirm-msg-text').innerText = msg;
+        document.getElementById('confirm-msg-text').innerHTML = msg;
         document.getElementById('confirm-modal').classList.remove('hidden');
         pendingConfirmCallback = callback;
     }
